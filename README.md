@@ -73,7 +73,7 @@ def test_gas_oil_ratio_uses_thousands_not_millions():
     ratio = series_ratio([5.0], [100.0]).iloc[0]
 
     assert GAS_M3_PER_UNIT == 1_000.0
-    assert ratio == pytest.approx(50.0)          # not 50 000
+    assert ratio == pytest.approx(50.0)  # not 50 000
 ```
 
 That test exists because I made this exact mistake in a previous project. The data there was under

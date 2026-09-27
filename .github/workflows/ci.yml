@@ -31,11 +31,13 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
-      - name: Check formatting
-        run: uv run ruff format --check .
+      # Tests run before the formatting check on purpose: a style nit must
+      # never hide a failing test, and GitHub skips the rest on first failure.
+      - name: Tests
+        run: uv run pytest -q
 
       - name: Type check
         run: uv run pyright
 
-      - name: Tests
-        run: uv run pytest -q
+      - name: Check formatting
+        run: uv run ruff format --check .
