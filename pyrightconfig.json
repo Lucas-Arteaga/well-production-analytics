@@ -1,0 +1,8 @@
+{
+  "//": "The environment is managed by uv. A dedicated pyrightconfig.json is read by every pyright-based checker, including editors and CI, whereas the equivalent [tool.pyright] section in pyproject.toml is not picked up by all of them. Without it, pandas and pytest resolve to Unknown and overload resolution silently degrades.",
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["src", "tests"],
+  "typeCheckingMode": "standard",
+  "reportMissingImports": "error"
+}

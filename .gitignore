@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local data — the official CSVs are downloaded, never committed
+data/
+*.csv
+*.parquet
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
