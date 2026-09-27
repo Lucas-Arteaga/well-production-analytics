@@ -463,16 +463,12 @@ dependencies = [
     { name = "pyarrow" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "pandas-stubs" },
     { name = "pyright" },
+    { name = "pytest" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -480,13 +476,12 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", specifier = ">=16" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pandas-stubs", specifier = ">=3.0.5.260914" },
+    { name = "pandas-stubs", specifier = ">=3.0.5" },
     { name = "pyright", specifier = ">=1.1.414" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "ruff", specifier = ">=0.6" },
 ]

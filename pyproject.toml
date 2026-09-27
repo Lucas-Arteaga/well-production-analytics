@@ -20,8 +20,8 @@ dependencies = [
   "pyarrow>=16",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+[project.scripts]
+wellprod = "wellprod.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -41,16 +41,14 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RET", "ARG", "PTH"]
 
-[tool.pyright]
-# The environment is managed by uv; point the type checker at the same interpreter
-# the tests run under, otherwise every third-party import is reported as unresolved.
-venvPath = "."
-venv = ".venv"
-include = ["src", "tests"]
-typeCheckingMode = "standard"
+# The type-checker configuration lives in pyrightconfig.json. Tools read that file reliably
+# when they invoke pyright themselves; the equivalent [tool.pyright] section is not picked up
+# by all of them, and a checker that cannot resolve the environment produces false errors.
 
 [dependency-groups]
 dev = [
-    "pandas-stubs>=3.0.5.260914",
-    "pyright>=1.1.414",
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "pyright>=1.1.414",
+  "pandas-stubs>=3.0.5",
 ]

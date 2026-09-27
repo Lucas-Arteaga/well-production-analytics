@@ -11,11 +11,14 @@ so that a reader can see what was dropped and why.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import pandas as pd
 
+from wellprod.convert import as_float as _as_float
+from wellprod.convert import as_int as _as_int
 from wellprod.schema import (
     COLUMNS,
     EXCLUDED_PROVINCIA,
@@ -38,26 +41,6 @@ from wellprod.schema import (
 def _numeric(series: pd.Series) -> pd.Series:
     """A float64 view of a column. Unparseable and missing values become ``NaN``."""
     return pd.Series(pd.to_numeric(series, errors="coerce"), dtype="float64")
-
-
-def _as_int(value: object, *, context: str) -> int:
-    """A plain Python ``int``.
-
-    Counts and sizes must leave pandas as native Python numbers: ``json.dumps`` cannot
-    serialise numpy scalars, so the report would be unserialisable exactly where it matters.
-    """
-    try:
-        return int(value)  # type: ignore[call-overload]
-    except (TypeError, ValueError) as exc:
-        raise TypeError(f"expected a count for {context}, got {value!r}") from exc
-
-
-def _as_float(value: object, *, context: str) -> float:
-    """A plain Python ``float``, for the same reason as :func:`_as_int`."""
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError) as exc:
-        raise TypeError(f"expected a number for {context}, got {value!r}") from exc
 
 
 def _count_true(mask: pd.Series) -> int:
@@ -109,6 +92,7 @@ class DataQualityReport:
     placeholder_field_rows: int = 0
     administrative_province_rows: int = 0
     implausible_gor_rows: int = 0
+    columns_requested: int = 0
 
     @property
     def usable_share(self) -> float:
@@ -144,19 +128,34 @@ class DataQualityReport:
         return "\n".join(lines)
 
 
-def build_report(df: pd.DataFrame, *, check_gor: bool = True) -> DataQualityReport:
-    """Inspect a dataframe against the column contract in :mod:`wellprod.schema`."""
+def build_report(
+    df: pd.DataFrame,
+    *,
+    check_gor: bool = True,
+    expected_columns: Collection[str] | None = None,
+) -> DataQualityReport:
+    """Inspect a dataframe against the column contract in :mod:`wellprod.schema`.
+
+    ``expected_columns`` defaults to the full published contract. A caller that deliberately
+    reads a **projection** of the file — which is what the CLI does, because a full year does not
+    fit comfortably in memory — passes the projection instead, so that ``missing_columns`` keeps
+    meaning "absent from what I asked for" rather than listing twenty-six columns the run never
+    requested. ``columns_requested`` records which case applied.
+    """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"expected a pandas DataFrame, got {type(df).__name__}")
+
+    expected = set(COLUMNS) if expected_columns is None else set(expected_columns)
 
     report = DataQualityReport(
         n_rows=_as_int(df.shape[0], context="row count"),
         n_columns=_as_int(df.shape[1], context="column count"),
+        columns_requested=len(expected),
     )
 
     present = set(df.columns)
-    report.missing_columns = sorted(set(COLUMNS) - present)
-    report.unexpected_columns = sorted(present - set(COLUMNS))
+    report.missing_columns = sorted(expected - present)
+    report.unexpected_columns = sorted(present - expected)
 
     report.null_counts = _null_counts(df)
     report.duplicate_rows = _as_int(df.duplicated().sum(), context="duplicate rows")
