@@ -24,7 +24,7 @@ Typical use
     wellprod report  --year 2026 --out reports
 """
 
-from wellprod.ingest import IngestManifest, ingest_year, resolve_source
+from wellprod.ingest import IngestManifest, ingest_year, load_years, resolve_source
 from wellprod.profile import profile_by
 from wellprod.quality import DataQualityReport, build_report, production_summary
 from wellprod.schema import (
@@ -34,19 +34,34 @@ from wellprod.schema import (
     PRODUCTION_COLUMNS,
     gas_oil_ratio,
 )
+from wellprod.series import (
+    SERIES_METRICS,
+    annual_totals,
+    common_months,
+    month_coverage,
+    monthly_series,
+    year_over_year,
+)
 
 __all__ = [
     "COLUMNS",
     "GAS_M3_PER_UNIT",
     "INJECTION_COLUMNS",
     "PRODUCTION_COLUMNS",
+    "SERIES_METRICS",
     "DataQualityReport",
     "IngestManifest",
+    "annual_totals",
     "build_report",
+    "common_months",
     "gas_oil_ratio",
     "ingest_year",
+    "load_years",
+    "month_coverage",
+    "monthly_series",
     "profile_by",
     "production_summary",
     "resolve_source",
+    "year_over_year",
 ]
 __version__ = "0.1.0"

@@ -16,7 +16,7 @@ import hashlib
 import json
 import urllib.error
 import urllib.request
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -376,6 +376,21 @@ def ingest_year(
         print(f"  cached {rows:,} rows in {chunks} part(s){flag}")
 
     return manifest
+
+
+def load_years(
+    years: Iterable[int],
+    cache_dir: Path | str = Path("data/cache"),
+    *,
+    columns: list[str] | None = None,
+) -> dict[int, pd.DataFrame]:
+    """Load several cached years, one frame per year.
+
+    Returns a mapping, so the caller decides whether to keep every year alive. When memory
+    matters, prefer the streaming shape that :func:`wellprod.series.annual_totals` accepts: load a
+    year, aggregate it, let it go.
+    """
+    return {year: load_year(year, cache_dir, columns=columns) for year in years}
 
 
 def load_year(

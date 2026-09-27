@@ -17,13 +17,25 @@ from __future__ import annotations
 import argparse
 import contextlib
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
+
+import pandas as pd
 
 from wellprod.ingest import IngestError, cache_paths, ingest_year, load_year
 from wellprod.profile import PROFILE_DIMENSIONS, profile_by, to_markdown
 from wellprod.quality import build_report
 from wellprod.schema import COLUMNS, VOLUME_COLUMNS
+from wellprod.series import (
+    SERIES_METRICS,
+    annual_totals,
+    common_months,
+    coverage_table,
+    growth_markdown,
+    month_coverage,
+    year_over_year,
+)
+from wellprod.series import to_markdown as series_to_markdown
 
 #: Columns the quality check reads. A projection of the contract, on purpose.
 QUALITY_COLUMNS: tuple[str, ...] = (
@@ -48,6 +60,17 @@ DEFAULT_PROFILE_DIMENSIONS: tuple[str, ...] = (
     "empresa",
     "formacion",
     "tipo_de_recurso",
+)
+
+
+#: Columns the multi-year series reads.
+SERIES_COLUMNS: tuple[str, ...] = (
+    "anio",
+    "mes",
+    "idpozo",
+    "prod_pet",
+    "prod_gas",
+    "prod_agua",
 )
 
 
@@ -212,6 +235,81 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _coverage(cache: Path, years: Sequence[int]) -> dict[int, list[int]]:
+    """Which months each cached year actually covers.
+
+    A cheap projection: this decides whether two years can be compared at all, so it runs before
+    anything expensive is loaded.
+    """
+    coverage: dict[int, list[int]] = {}
+    for year in years:
+        frame = load_year(year, cache, columns=["mes"])
+        coverage[year] = month_coverage(frame)
+        del frame
+    return coverage
+
+
+def cmd_series(args: argparse.Namespace) -> int:
+    """Compare years over a window of months present in every one of them."""
+    cache = Path(args.cache)
+    years = list(args.years)
+    coverage = _coverage(cache, years)
+    months = common_months(coverage.values())
+    if not months:
+        print("error: no month is present in every requested year", file=sys.stderr)
+        return 2
+
+    columns = _projection(SERIES_COLUMNS, [args.by] if args.by else [])
+
+    def streamed() -> Iterator[tuple[int, pd.DataFrame]]:
+        """Yield one year at a time so three years are never resident together."""
+        for year in years:
+            frame = load_year(year, cache, columns=columns)
+            yield year, frame
+            del frame
+
+    totals = annual_totals(streamed(), metric=args.metric, dimension=args.by, months=months)
+    growth = year_over_year(totals)
+
+    window_note = (
+        f"**Comparable window: months {', '.join(str(month) for month in months)}.** Every "
+        "total below is restricted to it. A file that stops in August is a *shorter* year, not a "
+        "smaller one: comparing raw annual totals would show a collapse that is purely an "
+        "artefact of the publication date."
+    )
+    body = "\n".join(
+        [
+            f"# Multi-year series — {args.metric}",
+            "",
+            window_note,
+            "",
+            "## Coverage per year",
+            "",
+            coverage_table(coverage),
+            "",
+            "## Annual totals",
+            "",
+            series_to_markdown(totals, metric=args.metric, months=months),
+            "",
+            "## Year over year",
+            "",
+            growth_markdown(growth),
+            "",
+            "## Provenance",
+            "",
+        ]
+    )
+    for year in years:
+        body += f"- {year}: {_provenance(year, cache)}\n"
+
+    suffix = f"-{args.by}" if args.by else ""
+    destination = _write(
+        Path(args.out) / f"series-{args.metric}{suffix}-{years[0]}-{years[-1]}.md", body
+    )
+    print(f"wrote {destination}")
+    return 0
+
+
 # ---------------------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------------------
@@ -294,6 +392,29 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--out", type=Path, default=Path("reports"), help="output directory")
     report.add_argument("--top", type=int, default=15, help="rows per profile (default: 15)")
     report.set_defaults(func=cmd_report)
+
+    series = subparsers.add_parser(
+        "series",
+        help="compare years over a window of months present in every one of them",
+    )
+    series.add_argument(
+        "--years", type=int, nargs="+", required=True, help="years to compare, in order"
+    )
+    series.add_argument(
+        "--metric",
+        choices=SERIES_METRICS,
+        default="oil_m3",
+        help="what to compare over time (default: oil_m3)",
+    )
+    series.add_argument(
+        "--by",
+        choices=PROFILE_DIMENSIONS,
+        default=None,
+        help="split the series by a dimension, for example tipo_de_recurso",
+    )
+    series.add_argument("--cache", type=Path, default=Path("data/cache"), help="cache directory")
+    series.add_argument("--out", type=Path, default=Path("reports"), help="output directory")
+    series.set_defaults(func=cmd_series)
 
     return parser
 

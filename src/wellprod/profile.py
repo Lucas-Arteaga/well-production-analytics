@@ -38,6 +38,29 @@ def _m3(frame: pd.DataFrame, column: str) -> pd.Series:
     return pd.Series(pd.to_numeric(frame[column], errors="coerce"), dtype="float64") * factor
 
 
+def metrics_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """The standard production metrics for a frame, all volumes in cubic metres.
+
+    Defined once and shared by the profiler and the time series, so that a metric can never
+    mean two different things in two reports. ``water_cut`` and ``gor_m3_m3`` are ``NaN`` where
+    they are undefined rather than zero, because a well that produced nothing has neither.
+    """
+    for required in PRODUCTION_COLUMNS:
+        if required not in frame.columns:
+            raise KeyError(f"missing column {required!r}")
+
+    return pd.DataFrame(
+        {
+            "prod_pet_m3": _m3(frame, "prod_pet"),
+            "prod_gas_m3": _m3(frame, "prod_gas"),
+            "prod_agua_m3": _m3(frame, "prod_agua"),
+            "gor_m3_m3": gas_oil_ratio(frame["prod_gas"], frame["prod_pet"]),
+            "water_cut": water_cut(frame),
+        },
+        index=frame.index,
+    )
+
+
 def water_cut(frame: pd.DataFrame) -> pd.Series:
     """Water cut as a fraction of total liquid, ``NaN`` where there is no liquid at all.
 
@@ -80,19 +103,14 @@ def profile_by(
         raise ValueError(
             f"unknown dimension {dimension!r}; expected one of {', '.join(PROFILE_DIMENSIONS)}"
         )
-    for required in (*PRODUCTION_COLUMNS, dimension):
-        if required not in frame.columns:
-            raise KeyError(f"missing column {required!r}")
+    if dimension not in frame.columns:
+        raise KeyError(f"missing column {dimension!r}")
 
-    working = pd.DataFrame({dimension: frame[dimension].astype("string")})
-    working["prod_pet_m3"] = _m3(frame, "prod_pet")
-    working["prod_gas_m3"] = _m3(frame, "prod_gas")
-    working["prod_agua_m3"] = _m3(frame, "prod_agua")
-    working["_gor"] = gas_oil_ratio(frame["prod_gas"], frame["prod_pet"])
-    working["_wc"] = water_cut(frame)
+    working = metrics_frame(frame)
+    working["_dim"] = frame[dimension].astype("string")
     working["_well"] = frame["idpozo"] if "idpozo" in frame.columns else pd.NA
 
-    grouped = working.groupby(dimension, dropna=False)
+    grouped = working.groupby("_dim", dropna=False)
     result = pd.DataFrame(
         {
             "n_rows": grouped.size(),
@@ -100,8 +118,8 @@ def profile_by(
             "prod_pet_m3": grouped["prod_pet_m3"].sum(),
             "prod_gas_m3": grouped["prod_gas_m3"].sum(),
             "prod_agua_m3": grouped["prod_agua_m3"].sum(),
-            "gor_median_m3_m3": grouped["_gor"].median(),
-            "water_cut": grouped["_wc"].mean(),
+            "gor_median_m3_m3": grouped["gor_m3_m3"].median(),
+            "water_cut": grouped["water_cut"].mean(),
         }
     )
 
